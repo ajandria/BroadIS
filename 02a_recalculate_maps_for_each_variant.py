@@ -120,12 +120,6 @@ ht = ht.annotate(ref=ht.alleles[0], alt=ht.alleles[1])
 #ht = ht.key_by("context", "ref", "alt").join(ht_mu.key_by("context", "ref", "alt"), how = 'left') # resorts the data making it slow
 ht = ht.annotate(**ht_mu[ht.context, ht.ref, ht.alt, ht.methylation_level])
 
-# After adding context and mutation rates to the main table 
-# (can be more than original number of rows as context may occure more than once depending on the locus)
-ht.count()
-# Show that contexts may be the same, but locus is completely different
-ht.show(3)
-
 ## 5. Train linear model on synonymous variants for mutational class correction
 ht_syn_ps = train_on_synonymous(ht)
 ht_syn_ps.show(3)
