@@ -80,6 +80,8 @@ ht_mu = ht_mu.key_by('context', 'ref', 'alt', 'methylation_level') # has to have
 
 # Import context table from gnomad (https://broadinstitute.github.io/gnomad_methods/api_reference/utils/vep.html?highlight=context#gnomad.utils.vep.get_vep_context)
 context_table = gnomad.utils.vep.get_vep_context("GRCh38").ht()
+context_table = context_table.filter(hl.is_defined(context_table.methyl_mean))
+
 context_table_parsed = context_table.select(context_table.context, context_table.methyl_mean)
 context_table_parsed = context_table_parsed.transmute(context = context_table_parsed.context[2:5])
 
@@ -103,6 +105,12 @@ ht.count()
 ht = ht.annotate(**context_table_parsed[ht.locus, ht.alleles])
 # After
 ht.count()
+
+# Subset the data for local computation
+ht = ht.filter(hl.is_defined(ht.methylation_level)) # makes sure there is methylation_level variables to be laters used in the grouping
+ht = ht.head(10000) # Subset the data
+ht.show(3)
+
 
 ## 4. Add mutation rates for added contexts
 # Split alleles field to ref and alt allele
