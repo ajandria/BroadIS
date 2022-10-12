@@ -150,6 +150,7 @@ maps_table = regress_per_context(ht, ht_syn_lm)
 maps_table.checkpoint('maps_table_per_variant.ht')
 
 maps_table.show(maps_table.count())
+
 ggplot(maps_table, aes(x=maps_table.consequence, y = maps_table.maps)) + geom_col(aes(fill=maps_table.consequence))
 
 #7. Compute number of variants in each class
@@ -158,5 +159,8 @@ N_singletons = ht_singletons.aggregate(hl.agg.counter(ht_singletons.vep.most_sev
 
 N_variants = ht.aggregate(hl.agg.counter(ht.vep.most_severe_consequence))
 
-N_singletons.show(N_singletons.count())
-N_variants.show(N_variants.count())
+# 8. Export tables for plotting and exploring
+ht.write('ht_final.ht')
+N_singletons.export('N_singletons.csv', delimiter=',')
+N_variants.export('N_variants.csv', delimiter=',')
+maps_table.export('maps_table.csv', delimiter=',')
