@@ -7,6 +7,9 @@ library(ggplot2)
 maps_table <- read_csv('01_maps/gc_out/data_full_ht/02a_f_maps_table.csv')
 
 ht_syn_ps <- read_csv('01_maps/gc_out/data_full_ht/ht_syn_ps.csv')
+
+ht_inframe <- read_csv('01_maps/gc_out/data_full_ht/ht_f_inframe_del.csv')
+
 # Load --------------------------------------------------------------------
 # MAPS bar plot
 maps_full <- ggplot(maps_table,
