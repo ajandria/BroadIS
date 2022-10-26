@@ -4,11 +4,9 @@ library(tidyverse)
 library(ggplot2)
 
 # Setup -------------------------------------------------------------------
-maps_table <- read_csv('01_maps/gc_out/data_full_ht/02a_f_maps_table.csv')
+maps_table <- read_csv('01_maps/gc_out/data_full_ht_26_Oct_22/02a_f_maps_table.csv')
 
-ht_syn_ps <- read_csv('01_maps/gc_out/data_full_ht/ht_syn_ps.csv')
-
-ht_inframe <- read_csv('01_maps/gc_out/data_full_ht/ht_f_inframe_del.csv')
+ht_syn_ps <- read_csv('01_maps/gc_out/data_full_ht_26_Oct_22/ht_syn_ps.csv')
 
 # Load --------------------------------------------------------------------
 # MAPS bar plot
@@ -22,6 +20,13 @@ maps_full <- ggplot(maps_table,
 maps_full %>% 
   plotly::ggplotly()
 
+# Recode into variant type
+ht_syn_ps_recoded <- ht_syn_ps %>% 
+  mutate(variant_type = 
+           ifelse((ref == 'G' & alt == 'A' & methylation_level != 0) | (ref == 'C' & alt == 'T' & methylation_level != 0), 'CpG Transition',
+                  ifelse((ref == 'G' & alt == 'A' & methylation_level == 0) | (ref == 'C' & alt == 'T' & methylation_level == 0), 'Non-CpG Transition', 'Transversion'))
+           )
+
 # mu_snp vs ps 
 mu_snp_vs_ps <- ht_syn_ps %>%
   ggplot(aes(x = mu_snp, y = ps, col = context)) +
@@ -31,3 +36,4 @@ mu_snp_vs_ps <- ht_syn_ps %>%
 
 mu_snp_vs_ps %>% 
   plotly::ggplotly()
+

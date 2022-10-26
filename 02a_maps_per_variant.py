@@ -46,6 +46,8 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
     # Get expected number of singletons by applying the model factors
     ht_reg_table_ps = ht_reg_table_ps.annotate(**ht_mu[ht_reg_table_ps.context, ht_reg_table_ps.ref, ht_reg_table_ps.alt, ht_reg_table_ps.methylation_level])
     
+    ht_reg_table_ps = ht_reg_table_ps.filter(hl.is_defined(ht_reg_table_ps.mu_snp))
+
     ht_reg_table_ps_lm_cons = ht_reg_table_ps.annotate(expected_singletons=(ht_reg_table_ps.mu_snp * ht_syn_lm[1] + ht_syn_lm[0]) * ht_reg_table_ps.N_variants)
 
     # To aggregate just sum for the context
@@ -89,8 +91,6 @@ def main():
     # 2. Import data
     # Import gnomaAD v.3.1.2
     ht = hl.read_table('gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.sites.ht')
-
-    ht = ht.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht/02a_f_ht_head_100kk.ht')
 
     # Import mutation rates from gnomAD paper
     ht_mu = hl.import_table('gs://janucik-dataproc-stage/01_maps/supplementary_dataset_10_mutation_rates.tsv.gz',
@@ -144,6 +144,8 @@ def main():
     ht_syn_ps = ht_syn_ps.annotate(**ht_mu[ht_syn_ps.context, ht_syn_ps.ref, ht_syn_ps.alt, ht_syn_ps.methylation_level])
     print(ht_syn_ps.count())
 
+    ht_syn_ps = ht_syn_ps.filter(hl.is_defined(ht_syn_ps.mu_snp))
+
     # Perform regression
     ht_syn_lm = ht_syn_ps.aggregate(hl.agg.linreg(ht_syn_ps.ps, [1, ht_syn_ps.mu_snp], weight=ht_syn_ps.N_variants).beta)
     # Show intercept and beta
@@ -151,19 +153,19 @@ def main():
 
     # 5. Predict expected number of variants for each context
     maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
-    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht/maps_table_per_variant.ht')
+    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/maps_table_per_variant.ht')
 
     maps_table_n_rows = maps_table.count()
     maps_table.show(maps_table_n_rows)
 
     # 6. Export tables for plotting and exploring
-    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht/02a_f_ht_final.ht')
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht/02a_f_maps_table.csv', delimiter=',')
+    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/02a_f_ht_final.ht')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/02a_f_maps_table.csv', delimiter=',')
 
-    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht/ht_syn_ps.ht')
+    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/ht_syn_ps.ht')
     ht_syn_ps.show(3)
 
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht/ht_syn_ps.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/ht_syn_ps.csv', delimiter=',')
 
 if __name__ == '__main__':
     main()
