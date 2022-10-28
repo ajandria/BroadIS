@@ -35,7 +35,7 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
     Requires input in form of Hail table: (so the things that should be changes for easier accessibility):
         1) Mutation rates are to be annotated for each tri-nucleotide context. 
     """
-    ht_reg_table = ht.annotate(consequence = ht.vep.most_severe_consequence)
+    ht_reg_table = ht.annotate(consequence = ht.most_severe_consequence)
 
     # Count number of variants and singletons
     ht_reg_table_variants = (ht_reg_table.group_by(ht_reg_table.context, ht_reg_table.ref, ht_reg_table.alt, ht_reg_table.methylation_level, ht_reg_table.consequence).aggregate(N_variants = hl.agg.count(), N_singletons = hl.agg.sum(ht_reg_table.info.singleton)))
@@ -85,6 +85,17 @@ def collapse_strand(ht):
         'was_flipped': (ht.ref == 'G') | (ht.ref == 'T')
     }
     return ht.annotate(**collapse_expr) if isinstance(ht, hl.Table) else ht.annotate_rows(**collapse_expr)
+
+def collapse_lof_call(ht):
+    ht = ht.annotate(lof = ht.vep.transcript_consequences.lof, lof_flags = ht.vep.transcript_consequences.lof_flags, log_filter = ht.vep.transcript_consequences.lof_filter, lof_info = ht.vep.transcript_consequences.lof_info)
+    ht = ht.annotate(most_severe_consequence = hl.case().when(
+            ht.lof[0] == 'HC', 'HC'
+        ).when(
+            ht.lof[0] == 'OS', 'OS'
+        ).when(
+            ht.lof[0] == 'LC', 'LC'
+        ).default(ht.vep.most_severe_consequence))
+    return ht
 
 def main():
 
@@ -152,20 +163,21 @@ def main():
     ht_syn_lm
 
     # 5. Predict expected number of variants for each context
+    ht = collapse_lof_call(ht)
     maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
-    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/maps_table_per_variant.ht')
+    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/maps_table_per_variant.ht')
 
     maps_table_n_rows = maps_table.count()
     maps_table.show(maps_table_n_rows)
 
     # 6. Export tables for plotting and exploring
-    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/02a_f_ht_final.ht')
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/02a_f_maps_table.csv', delimiter=',')
+    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/02a_f_ht_final.ht')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/02a_f_maps_table.csv', delimiter=',')
 
-    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/ht_syn_ps.ht')
+    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/ht_syn_ps.ht')
     ht_syn_ps.show(3)
 
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_26_Oct_22/ht_syn_ps.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/ht_syn_ps.csv', delimiter=',')
 
 if __name__ == '__main__':
     main()

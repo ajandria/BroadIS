@@ -86,6 +86,18 @@ def collapse_strand(ht):
     }
     return ht.annotate(**collapse_expr) if isinstance(ht, hl.Table) else ht.annotate_rows(**collapse_expr)
 
+def collapse_lof_call(ht):
+    ht = ht.annotate(lof = ht.vep.transcript_consequences.lof, lof_flags = ht.vep.transcript_consequences.lof_flags, log_filter = ht.vep.transcript_consequences.lof_filter, lof_info = ht.vep.transcript_consequences.lof_info)
+    ht = ht.annotate(most_severe_consequence = hl.case().when(
+            ht.lof[0] == 'HC', 'HC'
+        ).when(
+            ht.lof[0] == 'OS', 'OS'
+        ).when(
+            ht.lof[0] == 'LC', 'LC'
+        ).default(ht.vep.most_severe_consequence))
+    ht = ht.filter(ht.most_severe_consequence == 'missense_variant')
+    return ht
+
 def main():
 
     # 2. Import data
@@ -133,10 +145,8 @@ def main():
     # Annotate with vep + loftee
     print('Annotating with VEP')
     ht = hl.vep(ht) 
-    ht = ht.filter(hl.is_defined(ht.vep.transcript_consequences.lof))
-    ht = ht.select(lof = ht.vep.transcript_consequences.lof, lof_flags = ht.vep.transcript_consequences.lof_flags, log_filter = ht.vep.transcript_consequences.lof_filter, lof_info = ht.vep.transcript_consequences.lof_info)
-    ht = ht.annotate(lof1 = ht.lof[0])
-    ht = ht.filter(hl.is_defined(ht.lof1))
+    ht = collapse_lof_call(ht)
+    ht = ht.filter(hl.is_defined(ht.lof[0]))
     ht.show()
 
 if __name__ == '__main__':
