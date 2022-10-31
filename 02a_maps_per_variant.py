@@ -87,14 +87,10 @@ def collapse_strand(ht):
     return ht.annotate(**collapse_expr) if isinstance(ht, hl.Table) else ht.annotate_rows(**collapse_expr)
 
 def collapse_lof_call(ht):
-    ht = ht.annotate(lof = ht.vep.transcript_consequences.lof, lof_flags = ht.vep.transcript_consequences.lof_flags, log_filter = ht.vep.transcript_consequences.lof_filter, lof_info = ht.vep.transcript_consequences.lof_info)
-    ht = ht.annotate(most_severe_consequence = hl.case().when(
-            ht.lof[0] == 'HC', 'HC'
-        ).when(
-            ht.lof[0] == 'OS', 'OS'
-        ).when(
-            ht.lof[0] == 'LC', 'LC'
-        ).default(ht.vep.most_severe_consequence))
+    ht = ht.annotate(most_severe_consequence = hl.if_else(
+        hl.is_defined(ht.vep.transcript_consequences.lof[0]), 
+        ht.vep.transcript_consequences.lof[0], 
+        ht.vep.most_severe_consequence))
     return ht
 
 def main():
@@ -141,8 +137,12 @@ def main():
     print(ht.count())
     ht.show(3)
 
+    # 3.1 Implement loftee and filter to only synonymous or missense
+    ht = collapse_lof_call(ht)
+
     # 4. Train linear model on synonymous variants for mutational class correction
-    ht_synonymous_count = ht.filter(ht.vep.most_severe_consequence == "synonymous_variant")
+    print("SYNONYMOUS VARIANTS")
+    ht_synonymous_count = ht.filter(ht.most_severe_consequence == "synonymous_variant")
     ht_synonymous_count.count()
 
     ht_syn_ps = train_on_synonymous(ht)
@@ -160,24 +160,24 @@ def main():
     # Perform regression
     ht_syn_lm = ht_syn_ps.aggregate(hl.agg.linreg(ht_syn_ps.ps, [1, ht_syn_ps.mu_snp], weight=ht_syn_ps.N_variants).beta)
     # Show intercept and beta
-    ht_syn_lm
+    print("REGRESSION PARAMETERS")
+    print(ht_syn_lm)
 
     # 5. Predict expected number of variants for each context
-    ht = collapse_lof_call(ht)
     maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
-    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/maps_table_per_variant.ht')
+    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/maps_table_per_variant.ht')
 
     maps_table_n_rows = maps_table.count()
     maps_table.show(maps_table_n_rows)
 
     # 6. Export tables for plotting and exploring
-    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/02a_f_ht_final.ht')
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/02a_f_maps_table.csv', delimiter=',')
+    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/02a_f_ht_final.ht')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/02a_f_maps_table.csv', delimiter=',')
 
-    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/ht_syn_ps.ht')
+    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/ht_syn_ps.ht')
     ht_syn_ps.show(3)
 
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_28_Oct_22/ht_syn_ps.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/ht_syn_ps.csv', delimiter=',')
 
 if __name__ == '__main__':
     main()
