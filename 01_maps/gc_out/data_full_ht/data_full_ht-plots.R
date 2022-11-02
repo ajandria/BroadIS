@@ -6,7 +6,7 @@ library(ggplot2)
 # Setup -------------------------------------------------------------------
 maps_table <- read_csv('01_maps/gc_out/data_full_ht_28_Oct_22/02a_f_maps_table.csv') 
 
-ht_syn_ps <- read_csv('01_maps/gc_out/data_full_ht_01_Nov_22_v2/ht_syn_ps.csv')
+ht_syn_ps <- read_csv('01_maps/gc_out/data_full_ht_31_Oct_22_v2/ht_syn_ps.csv')
 
 # Load --------------------------------------------------------------------
 # MAPS bar plot

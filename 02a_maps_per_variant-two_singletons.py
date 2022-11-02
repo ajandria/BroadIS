@@ -125,22 +125,22 @@ def main():
             ).default(0))
 
     # Show the data structure
-    ht.show(3)
+    #ht.show(3)
     # Table with methylation level and mutational rate in the trinucleotide context
-    ht_mu.show(3)
-    print(ht_mu.count())
+    #ht_mu.show(3)
+    #print(ht_mu.count())
     # This table contains already precalculated nucleotides -3/+3 from mutation site 
-    context_table_parsed.show(3)
+    #context_table_parsed.show(3)
 
     # 3. Add context field to main data
     # Before joining the tri-nucleotide context of mutation
-    print(ht.count())
+    #print(ht.count())
     # Split alleles field to ref and alt allele and collapse strands
     ht = ht.annotate(ref=ht.alleles[0], alt=ht.alleles[1], **context_table_parsed[ht.key])
     ht = collapse_strand(ht) # Collapse strands as some mutation contexts may not be present in mutation table
     # (SNP can be represented as both strands so collapsing makes the schema uniformal) 
-    print(ht.count())
-    ht.show(3)
+    #print(ht.count())
+    #ht.show(3)
 
     # 3.1 Implement loftee and filter to only synonymous or missense
     ht = collapse_lof_call(ht)
@@ -148,41 +148,13 @@ def main():
     # 4. Train linear model on synonymous variants for mutational class correction
     print("SYNONYMOUS VARIANTS")
     ht_synonymous_count = ht.filter(ht.lof_csq_collapsed == "synonymous_variant")
-    ht_synonymous_count.count()
-
-    ht_syn_ps = train_on_synonymous(ht)
-
-    ht_syn_ps.aggregate(hl.agg.sum(ht_syn_ps.N_variants)) # Check if the numbers are the same for `ht_synonymous_count.count()`
-
-    ht_syn_ps.show()
-    print(ht_syn_ps.count())
-
-    ht_syn_ps = ht_syn_ps.annotate(**ht_mu[ht_syn_ps.context, ht_syn_ps.ref, ht_syn_ps.alt, ht_syn_ps.methylation_level])
-    print(ht_syn_ps.count())
-
-    ht_syn_ps = ht_syn_ps.filter(hl.is_defined(ht_syn_ps.mu_snp))
-
-    # Perform regression
-    ht_syn_lm = ht_syn_ps.aggregate(hl.agg.linreg(ht_syn_ps.ps, [1, ht_syn_ps.mu_snp], weight=ht_syn_ps.N_variants).beta)
-    # Show intercept and beta
-    print("REGRESSION PARAMETERS")
-    print(ht_syn_lm)
-
-    # 5. Predict expected number of variants for each context
-    maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
-    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/maps_table_per_variant.ht')
-
-    maps_table_n_rows = maps_table.count()
-    maps_table.show(maps_table_n_rows)
-
-    # 6. Export tables for plotting and exploring
-    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/02a_f_ht_final.ht')
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/02a_f_maps_table.csv', delimiter=',')
-
-    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/ht_syn_ps.ht')
-    ht_syn_ps.show(3)
-
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/ht_syn_ps.csv', delimiter=',')
-
+    ht_synonymous_count = ht_synonymous_count.annotate(**ht_mu[ht_synonymous_count.context, ht_synonymous_count.ref, ht_synonymous_count.alt, ht_synonymous_count.methylation_level])
+    ht_synonymous_count = ht_synonymous_count.filter(hl.is_defined(ht_synonymous_count.mu_snp))
+    ht_synonymous_count = ht_synonymous_count.filter((ht_synonymous_count.context == 'ACT') & (ht_synonymous_count.ref == 'C') & ((ht_synonymous_count.alt == 'G') | (ht_synonymous_count.alt == 'A')))
+    ht_synonymous_count.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v5/ht_synonymous_count_raw.csv', delimiter=',')
+    ht_synonymous_count = ht_synonymous_count.select(ht_synonymous_count.ref, ht_synonymous_count.alt, ht_synonymous_count.context, ht_synonymous_count.mu_snp, ht_synonymous_count.methylation_level)
+    ht_synonymous_count.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v5/ht_synonymous_count_subset.csv', delimiter=',')
+    ht_synonymous_count.show()
+    
 if __name__ == '__main__':
     main()
