@@ -17,7 +17,7 @@ def train_on_synonymous(ht):
     1. Already annotated mutation rates for each tri-nucleotide context in the main hail table
     """
     # Filter only synonymous variants
-    ht_syn = ht.filter(ht.vep.most_severe_consequence == "synonymous_variant")
+    ht_syn = ht.filter(ht.lof_csq_collapsed == "synonymous_variant")
 
     # Calculate number of variants in each tri-nucleotide context in synonymous variants
     ht_syn_variants = (ht_syn.group_by(ht_syn.context, ht_syn.ref, ht_syn.alt, ht_syn.methylation_level).aggregate(N_variants = hl.agg.count(), N_singletons = hl.agg.sum(ht_syn.info.singleton)))
@@ -30,15 +30,15 @@ def train_on_synonymous(ht):
 ## Define regression function
 def regress_per_context(ht, ht_syn_lm, ht_mu):
     """
-    Calculates MAPS with Standard Error of the Mean for a given consequence.
+    Calculates MAPS with Standard Error of the Mean for a given lof_csq_collapsed.
     
     Requires input in form of Hail table: (so the things that should be changes for easier accessibility):
         1) Mutation rates are to be annotated for each tri-nucleotide context. 
     """
-    ht_reg_table = ht.annotate(consequence = ht.most_severe_consequence)
+    ht_reg_table = ht
 
     # Count number of variants and singletons
-    ht_reg_table_variants = (ht_reg_table.group_by(ht_reg_table.context, ht_reg_table.ref, ht_reg_table.alt, ht_reg_table.methylation_level, ht_reg_table.consequence).aggregate(N_variants = hl.agg.count(), N_singletons = hl.agg.sum(ht_reg_table.info.singleton)))
+    ht_reg_table_variants = (ht_reg_table.group_by(ht_reg_table.context, ht_reg_table.ref, ht_reg_table.alt, ht_reg_table.methylation_level, ht_reg_table.lof_csq_collapsed).aggregate(N_variants = hl.agg.count(), N_singletons = hl.agg.sum(ht_reg_table.info.singleton)))
 
     # Merge the tables to obtain proportions (ps)
     ht_reg_table_ps = ht_reg_table_variants.annotate(ps = ht_reg_table_variants.N_singletons/ht_reg_table_variants.N_variants)
@@ -51,7 +51,7 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
     ht_reg_table_ps_lm_cons = ht_reg_table_ps.annotate(expected_singletons=(ht_reg_table_ps.mu_snp * ht_syn_lm[1] + ht_syn_lm[0]) * ht_reg_table_ps.N_variants)
 
     # To aggregate just sum for the context
-    ht_reg_table_ps_lm_cons_agg = (ht_reg_table_ps_lm_cons.group_by("consequence")
+    ht_reg_table_ps_lm_cons_agg = (ht_reg_table_ps_lm_cons.group_by("lof_csq_collapsed")
                 .aggregate(N_singletons=hl.agg.sum(ht_reg_table_ps_lm_cons.N_singletons),
                             expected_singletons=hl.agg.sum(ht_reg_table_ps_lm_cons.expected_singletons),
                             N_variants=hl.agg.sum(ht_reg_table_ps_lm_cons.N_variants)))
@@ -87,10 +87,10 @@ def collapse_strand(ht):
     return ht.annotate(**collapse_expr) if isinstance(ht, hl.Table) else ht.annotate_rows(**collapse_expr)
 
 def collapse_lof_call(ht):
-    ht = ht.annotate(most_severe_consequence = hl.if_else(
-        hl.is_defined(ht.vep.transcript_consequences.lof[0]), 
-        ht.vep.transcript_consequences.lof[0], 
-        ht.vep.most_severe_consequence))
+    ht = ht.annotate(lof_csq_collapsed = hl.if_else(
+        hl.is_defined(ht.vep.worst_csq_by_gene_canonical.lof), 
+        ht.vep.worst_csq_by_gene_canonical.lof, 
+        ht.vep.worst_csq_by_gene_canonical.most_severe_consequence))
     return ht
 
 def main():
@@ -98,6 +98,11 @@ def main():
     # 2. Import data
     # Import gnomaAD v.3.1.2
     ht = hl.read_table('gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.sites.ht')
+
+    # Initial filtering
+    ht = gnomad.utils.vep.process_consequences(ht)
+    ht = ht.explode(ht.vep.worst_csq_by_gene_canonical)
+    ht = ht.filter((hl.len(ht.filters) == 0) & (ht.vep.worst_csq_by_gene_canonical.biotype == 'protein_coding'))
 
     # Import mutation rates from gnomAD paper
     ht_mu = hl.import_table('gs://janucik-dataproc-stage/01_maps/supplementary_dataset_10_mutation_rates.tsv.gz',
@@ -142,7 +147,7 @@ def main():
 
     # 4. Train linear model on synonymous variants for mutational class correction
     print("SYNONYMOUS VARIANTS")
-    ht_synonymous_count = ht.filter(ht.most_severe_consequence == "synonymous_variant")
+    ht_synonymous_count = ht.filter(ht.lof_csq_collapsed == "synonymous_variant")
     ht_synonymous_count.count()
 
     ht_syn_ps = train_on_synonymous(ht)
@@ -165,19 +170,19 @@ def main():
 
     # 5. Predict expected number of variants for each context
     maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
-    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/maps_table_per_variant.ht')
+    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_01_Nov_22_v2/maps_table_per_variant.ht')
 
     maps_table_n_rows = maps_table.count()
     maps_table.show(maps_table_n_rows)
 
     # 6. Export tables for plotting and exploring
-    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/02a_f_ht_final.ht')
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/02a_f_maps_table.csv', delimiter=',')
+    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_01_Nov_22_v2/02a_f_ht_final.ht')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_01_Nov_22_v2/02a_f_maps_table.csv', delimiter=',')
 
-    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/ht_syn_ps.ht')
+    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_01_Nov_22_v2/ht_syn_ps.ht')
     ht_syn_ps.show(3)
 
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_31_Oct_22_v2/ht_syn_ps.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_01_Nov_22_v2/ht_syn_ps.csv', delimiter=',')
 
 if __name__ == '__main__':
     main()
