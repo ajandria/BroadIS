@@ -102,7 +102,7 @@ def main():
     # Initial filtering
     ht = gnomad.utils.vep.process_consequences(ht)
     ht = ht.explode(ht.vep.worst_csq_by_gene_canonical)
-    ht = ht.filter((hl.len(ht.filters) == 0) & (ht.vep.worst_csq_by_gene_canonical.biotype == 'protein_coding'))
+    ht = ht.filter((hl.len(ht.filters) == 0) & (ht.vep.worst_csq_by_gene_canonical.biotype == 'protein_coding') & (ht.vep.worst_csq_by_gene_canonical.gene_id.startswith('ENSG')))
 
     # Import mutation rates from gnomAD paper
     ht_mu = hl.import_table('gs://janucik-dataproc-stage/01_maps/supplementary_dataset_10_mutation_rates.tsv.gz',
@@ -170,19 +170,19 @@ def main():
 
     # 5. Predict expected number of variants for each context
     maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
-    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/maps_table_per_variant.ht')
+    maps_table = maps_table.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v4/maps_table_per_variant.ht')
 
     maps_table_n_rows = maps_table.count()
     maps_table.show(maps_table_n_rows)
 
     # 6. Export tables for plotting and exploring
-    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/02a_f_ht_final.ht')
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/02a_f_maps_table.csv', delimiter=',')
+    ht.write('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v4/02a_f_ht_final.ht')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v4/02a_f_maps_table.csv', delimiter=',')
 
-    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/ht_syn_ps.ht')
+    ht_syn_ps = ht_syn_ps.checkpoint('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v4/ht_syn_ps.ht')
     ht_syn_ps.show(3)
 
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v3/ht_syn_ps.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/data_full_ht_02_Nov_22_v4/ht_syn_ps.csv', delimiter=',')
 
 if __name__ == '__main__':
     main()
