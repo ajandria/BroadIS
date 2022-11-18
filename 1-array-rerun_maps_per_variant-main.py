@@ -44,7 +44,7 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
     # Count number of variants and singletons
     #ht_reg_table_variants = (ht_reg_table.group_by(ht_reg_table.context, ht_reg_table.ref, ht_reg_table.alt, ht_reg_table.methylation_level, ht_reg_table.lof_csq_collapsed).aggregate(N_variants = hl.agg.array_sum(ht_reg_table.freq.AC), N_singletons = ht_reg_table.aggregate(hl.agg.array_agg(lambda AC: hl.agg.count_where(AC == 1), ht_reg_table.freq.AC))))
 
-    ht_reg_table_variants = (ht_reg_table.group_by('locus', 'alleles', 'context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(singletons = ((hl.agg.array_agg(lambda x: hl.agg.any(x[0] == 1), ht_reg_table.freq))), variants = ((hl.agg.array_agg(lambda x: hl.agg.any(x[0] > 0), ht_reg_table.freq)))))
+    ht_reg_table_variants = (ht_reg_table.group_by('locus', 'alleles', 'context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(singletons = ((hl.agg.array_agg(lambda x: hl.agg.sum(x[0] == 1), ht_reg_table.freq))), variants = ((hl.agg.array_agg(lambda x: hl.agg.sum(x[0] > 0), ht_reg_table.freq)))))
 
     ht_reg_table_variants = (ht_reg_table_variants.group_by('context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(N_variants = hl.agg.array_sum(ht_reg_table_variants.variants), N_singletons = hl.agg.array_sum(ht_reg_table_variants.singletons)))
 
@@ -163,11 +163,13 @@ def main():
     # 5. Predict expected number of variants for each context
     maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
 
-    maps_table.write('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_17_Nov_23_v1/02a_f_maps_table.ht')
+    #maps_table = maps_table.annotate_globals(ht.freq_meta.collect())
+
+    maps_table.write('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_18_Nov_23_v1/02a_f_maps_table.ht')
 
     # 6. Export tables for plotting and exploring
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_17_Nov_23_v1/02a_f_maps_table.csv', delimiter=',')
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_17_Nov_23_v1/ht_syn_ps.csv', delimiter=',')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_18_Nov_23_v1/02a_f_maps_table.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_18_Nov_23_v1/ht_syn_ps.csv', delimiter=',')
 
 if __name__ == '__main__':
     main()
