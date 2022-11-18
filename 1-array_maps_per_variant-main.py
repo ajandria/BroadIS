@@ -7,63 +7,6 @@ import plotly
 import plotly.io as pio
 pio.renderers.default='iframe'
 
-# 1. Define helper functions
-## Define data wrangling function for synonymous variants
-def train_on_synonymous(ht):
-    """
-    This function trains the regression model to predict the expected singleton/total variants ratio.
-    
-    Requirements (things to change as for best parcitces)
-    1. Already annotated mutation rates for each tri-nucleotide context in the main hail table
-    """
-    # Filter only synonymous variants
-    ht_syn = ht.filter(ht.lof_csq_collapsed == "synonymous_variant")
-
-    # Calculate number of variants in each tri-nucleotide context in synonymous variants
-    ht_syn_variants = (ht_syn.group_by(ht_syn.context, ht_syn.ref, ht_syn.alt, ht_syn.methylation_level).aggregate(N_variants = hl.agg.count(), N_singletons = hl.agg.sum(ht_syn.info.singleton)))
-
-    # Merge the N variants and N singletons tables
-    ht_syn_ps = ht_syn_variants.annotate(ps = ht_syn_variants.N_singletons/ht_syn_variants.N_variants)
-    
-    return ht_syn_ps  
-
-## Define regression function
-def regress_per_context(ht, ht_syn_lm, ht_mu):
-    """
-    Calculates MAPS with Standard Error of the Mean for a given lof_csq_collapsed.
-    
-    Requires input in form of Hail table: (so the things that should be changes for easier accessibility):
-        1) Mutation rates are to be annotated for each tri-nucleotide context. 
-    """
-    ht_reg_table = ht
-
-    # Count number of variants and singletons
-    ht_reg_table_variants = (ht_reg_table.group_by(ht_reg_table.context, ht_reg_table.ref, ht_reg_table.alt, ht_reg_table.methylation_level, ht_reg_table.lof_csq_collapsed).aggregate(N_variants = hl.agg.array_sum(ht_reg_table.freq.AC), N_singletons = ht_reg_table.aggregate(hl.agg.array_agg(lambda AC: hl.agg.count_where(AC == 1), ht_reg_table.freq.AC))))
-
-    # Merge the tables to obtain proportions (ps)
-    ht_reg_table_ps = ht_reg_table_variants.annotate(ps = ht_reg_table_variants.N_singletons/ht_reg_table_variants.N_variants)
-    
-    # Get expected number of singletons by applying the model factors
-    ht_reg_table_ps = ht_reg_table_ps.annotate(**ht_mu[ht_reg_table_ps.context, ht_reg_table_ps.ref, ht_reg_table_ps.alt, ht_reg_table_ps.methylation_level])
-    
-    ht_reg_table_ps = ht_reg_table_ps.filter(hl.is_defined(ht_reg_table_ps.mu_snp))
-
-    ht_reg_table_ps_lm_cons = ht_reg_table_ps.annotate(expected_singletons=(ht_reg_table_ps.mu_snp * ht_syn_lm[1] + ht_syn_lm[0]) * ht_reg_table_ps.N_variants)
-
-    # To aggregate just sum for the context
-    ht_reg_table_ps_lm_cons_agg = (ht_reg_table_ps_lm_cons.group_by("lof_csq_collapsed")
-                .aggregate(N_singletons=hl.agg.array_sum(ht_reg_table_ps_lm_cons.N_singletons),
-                            expected_singletons=hl.agg.array_sum(ht_reg_table_ps_lm_cons.expected_singletons),
-                            N_variants=hl.agg.array_sum(ht_reg_table_ps_lm_cons.N_variants)))
-
-    # Calculate MAPS and aggregated proportions 
-    ht_reg_table_ps_lm_cons_agg_MAPS = ht_reg_table_ps_lm_cons_agg.annotate(ps_agg=ht_reg_table_ps_lm_cons_agg.N_singletons / ht_reg_table_ps_lm_cons_agg.N_variants,
-        maps=(ht_reg_table_ps_lm_cons_agg.N_singletons - ht_reg_table_ps_lm_cons_agg.expected_singletons) / ht_reg_table_ps_lm_cons_agg.N_variants)
-
-    # Add MAPS standard error of the mean (sem)
-    ht_reg_table_ps_lm_cons_agg_MAPS = ht_reg_table_ps_lm_cons_agg_MAPS.annotate(maps_sem=(ht_reg_table_ps_lm_cons_agg_MAPS.ps_agg * (1 - ht_reg_table_ps_lm_cons_agg_MAPS.ps_agg) / ht_reg_table_ps_lm_cons_agg_MAPS.N_variants) ** 0.5)
-    return ht_reg_table_ps_lm_cons_agg_MAPS
-
 def collapse_strand(ht):
     """
     Return the deduplicated context by collapsing DNA strands.
@@ -134,28 +77,6 @@ def main():
     ht = collapse_lof_call(ht)
     ht = ht.filter((ht.lof_csq_collapsed == 'HC') | (ht.lof_csq_collapsed == 'LC') | (ht.lof_csq_collapsed == 'OS') | (ht.lof_csq_collapsed == 'missense_variant') | (ht.lof_csq_collapsed == 'synonymous_variant'))
     ht = ht.checkpoint('gs://janucik-dataproc-stage/01_maps/02b_maps_per_variant_array-main_17_Nov_22_v3/maps_per_variant_array_main.ht') # Save the data for further computation
-    
-
-    # 4. Train linear model on synonymous variants for mutational class correction
-    print("SYNONYMOUS VARIANTS")
-    ht_synonymous_count = ht.filter(ht.lof_csq_collapsed == "synonymous_variant")
-
-    ht_syn_ps = train_on_synonymous(ht)
-    ht_syn_ps = ht_syn_ps.annotate(**ht_mu[ht_syn_ps.context, ht_syn_ps.ref, ht_syn_ps.alt, ht_syn_ps.methylation_level])
-    ht_syn_ps = ht_syn_ps.filter(hl.is_defined(ht_syn_ps.mu_snp))
-
-    # Perform regression
-    ht_syn_lm = ht_syn_ps.aggregate(hl.agg.linreg(ht_syn_ps.ps, [1, ht_syn_ps.mu_snp], weight=ht_syn_ps.N_variants).beta)
-    # Show intercept and beta
-    print("REGRESSION PARAMETERS")
-    print(ht_syn_lm)
-
-    # 5. Predict expected number of variants for each context
-    maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
-
-    # 6. Export tables for plotting and exploring
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/02b_maps_per_variant_array-main_17_Nov_22_v3/02a_f_maps_table.csv', delimiter=',')
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/02b_maps_per_variant_array-main_17_Nov_22_v3/ht_syn_ps.csv', delimiter=',')
 
 if __name__ == '__main__':
     main()

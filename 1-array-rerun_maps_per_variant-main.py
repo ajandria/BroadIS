@@ -40,9 +40,9 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
     # Count number of variants and singletons
     #ht_reg_table_variants = (ht_reg_table.group_by(ht_reg_table.context, ht_reg_table.ref, ht_reg_table.alt, ht_reg_table.methylation_level, ht_reg_table.lof_csq_collapsed).aggregate(N_variants = hl.agg.array_sum(ht_reg_table.freq.AC), N_singletons = ht_reg_table.aggregate(hl.agg.array_agg(lambda AC: hl.agg.count_where(AC == 1), ht_reg_table.freq.AC))))
 
-    ht_reg_table_variants = (ht_reg_table.group_by(ht_reg_table.context, ht_reg_table.ref, ht_reg_table.alt, ht_reg_table.methylation_level, ht_reg_table.lof_csq_collapsed).aggregate(N_variants = hl.agg.array_agg(lambda AC: hl.agg.any(AC > 0), ht.freq.AC), N_singletons = hl.agg.array_agg(lambda AC: hl.agg.any(AC == 1), ht.freq.AC)))
+    ht_reg_table_variants = (ht_reg_table.group_by('locus', 'alleles', 'context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(singletons = ((hl.agg.array_agg(lambda x: hl.agg.any(x[0] == 1), ht.freq))), variants = ((hl.agg.array_agg(lambda x: hl.agg.any(x[0] > 0), ht.freq)))))
 
-    ht_reg_table_variants.show()
+    ht_reg_table_variants = (ht_reg_table_variants.group_by('context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(N_variants = hl.agg.array_sum(ht_reg_table_variants.variants), N_singletons = hl.agg.array_sum(ht_reg_table_variants.singletons)))
 
     # Merge the tables to obtain proportions (ps)
     ht_reg_table_ps = ht_reg_table_variants.annotate(ps = ht_reg_table_variants.N_singletons/ht_reg_table_variants.N_variants)
@@ -54,15 +54,11 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
 
     ht_reg_table_ps_lm_cons = ht_reg_table_ps.annotate(expected_singletons=(ht_reg_table_ps.mu_snp * ht_syn_lm[1] + ht_syn_lm[0]) * ht_reg_table_ps.N_variants)
 
-    ht_reg_table_ps_lm_cons.show()
-
     # To aggregate just sum for the context
     ht_reg_table_ps_lm_cons_agg = (ht_reg_table_ps_lm_cons.group_by("lof_csq_collapsed")
                 .aggregate(N_singletons=hl.agg.array_sum(ht_reg_table_ps_lm_cons.N_singletons),
                             expected_singletons=hl.agg.array_sum(ht_reg_table_ps_lm_cons.expected_singletons),
                             N_variants=hl.agg.array_sum(ht_reg_table_ps_lm_cons.N_variants)))
-
-    ht_reg_table_ps_lm_cons_agg.show()
 
     # Calculate MAPS and aggregated proportions 
     ht_reg_table_ps_lm_cons_agg_MAPS = ht_reg_table_ps_lm_cons_agg.annotate(ps_agg=ht_reg_table_ps_lm_cons_agg.N_singletons / ht_reg_table_ps_lm_cons_agg.N_variants,
@@ -142,7 +138,8 @@ def main():
     ht = collapse_lof_call(ht)
     ht = ht.filter((ht.lof_csq_collapsed == 'HC') | (ht.lof_csq_collapsed == 'LC') | (ht.lof_csq_collapsed == 'OS') | (ht.lof_csq_collapsed == 'missense_variant') | (ht.lof_csq_collapsed == 'synonymous_variant'))
     """
-    ht = hl.read_table('gs://janucik-dataproc-stage/01_maps/02b_maps_per_variant_array-main_17_Nov_22_v2/maps_per_variant_array_main.ht') # Save the data for further computation
+    # Checkpoint or read here
+    ht = hl.read_table('gs://janucik-dataproc-stage/01_maps/02b_maps_per_variant_array-main_17_Nov_22_v2/maps_per_variant_array_main.ht')
     
 
     # 4. Train linear model on synonymous variants for mutational class correction
@@ -162,11 +159,11 @@ def main():
     # 5. Predict expected number of variants for each context
     maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
 
-    maps_table.write('gs://janucik-dataproc-stage/01_maps/02b_maps_per_variant_array-main_17_Nov_22_v3/02a_f_maps_table.ht')
+    maps_table.write('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_17_Nov_22_v2/02a_f_maps_table.ht')
 
     # 6. Export tables for plotting and exploring
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/02b_maps_per_variant_array-main_17_Nov_22_v3/02a_f_maps_table.csv', delimiter=',')
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/02b_maps_per_variant_array-main_17_Nov_22_v3/ht_syn_ps.csv', delimiter=',')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_17_Nov_22_v2/02a_f_maps_table.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_17_Nov_22_v2/ht_syn_ps.csv', delimiter=',')
 
 if __name__ == '__main__':
     main()
