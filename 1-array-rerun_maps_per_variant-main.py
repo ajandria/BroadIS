@@ -163,13 +163,17 @@ def main():
     # 5. Predict expected number of variants for each context
     maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
 
+    # Add meta fields
+    meta_fields = ht.freq_meta.collect()
+    maps_table = maps_table.annotate_globals(freq_metas = meta_fields)
+
     #maps_table = maps_table.annotate_globals(ht.freq_meta.collect())
 
-    maps_table.write('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_18_Nov_23_v1/02a_f_maps_table.ht')
+    maps_table.write('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_21_Nov_22_v1/02a_f_maps_table.ht')
 
     # 6. Export tables for plotting and exploring
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_18_Nov_23_v1/02a_f_maps_table.csv', delimiter=',')
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_18_Nov_23_v1/ht_syn_ps.csv', delimiter=',')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_21_Nov_22_v1/02a_f_maps_table.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_21_Nov_22_v1/ht_syn_ps.csv', delimiter=',')
 
 if __name__ == '__main__':
     main()
