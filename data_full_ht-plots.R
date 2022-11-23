@@ -26,21 +26,21 @@ color_table <- data.frame(
   maps_table,
   aes(x = lof_csq_collapsed, y = maps, fill = color_table$colors)
 ) +
-  geom_bar(stat = "identity", width = 0.7) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  ggthemes::theme_hc() +
-  ggtitle("MAPS across all variants") +
-  coord_flip() +
-  ylab("MAPS") +
-  xlab("Collapsed lof and consequence calls") +
-  theme(legend.position = "none") +
-  theme(axis.text.x = element_text(angle = 0, hjust = 0.46)) +
-  theme(
-    axis.title = element_text(face = "bold"),
-    axis.text.x = element_text(face = "bold"),
-    axis.text.y = element_text(face = "bold"),
-    title = element_text(face = "bold")
-  )
+    geom_bar(stat = "identity", width = 0.7) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    ggthemes::theme_hc() +
+    ggtitle("MAPS across all variants") +
+    coord_flip() +
+    ylab("MAPS") +
+    xlab("Collapsed lof and consequence calls") +
+    theme(legend.position = "none") +
+    theme(axis.text.x = element_text(angle = 0, hjust = 0.46)) +
+    theme(
+      axis.title = element_text(face = "bold"),
+      axis.text.x = element_text(face = "bold"),
+      axis.text.y = element_text(face = "bold"),
+      title = element_text(face = "bold")
+    )
 )
 
 maps_full %>%
@@ -48,33 +48,55 @@ maps_full %>%
 
 # Sub on 4
 maps_sub <- maps_table %>%
-  filter(lof_csq_collapsed %in% c("LC", "HC", "missense_variant", "synonymous_variant"))
+  filter(lof_csq_collapsed %in% c("LC", "HC", "missense_variant", "synonymous_variant")) %>% 
+  mutate(tranche = rep("info.singleton", 4))
 maps_sub$lof_csq_collapsed <- fct_rev(factor(maps_sub$lof_csq_collapsed, levels = maps_sub$lof_csq_collapsed))
 
+maps_sub_array <- maps_sub %>% 
+  full_join(
+    data.frame(
+      lof_csq_collapsed = c('HC_array_i0', 'LC_array_i0', 'missense_array_i0', 'synonymous_array_i0',
+                            'HC_array_i0_syn', 'LC_array_i0_syn', 'missense_array_i0_syn', 'synonymous_array_i0_syn',
+                            'HC_arr_sum', 'LC_arr_sum', 'missense_arr_sum', 'synonymous_arr_sum'),
+      maps = c(1.59e-01, 6.85e-02, 5.36e-02, 1.18e-02,
+               1.47e-01, 5.63e-02, 4.16e-02, -5.47e-05,
+               1.47e-01, 5.66e-02, 4.17e-02, 5.99e-17),
+      N_singletons = c(97491, 11511, 2068535, 921436,
+                       97491, 11511, 2068535, 921436),
+      N_variants = c(150915, 20179, 3871714, 1922368),
+      expected_singletons = c(7.34e+04, 1.01e+04, 1.86e+06, 8.99e+05),
+      ps_agg = c(6.46e-01, 5.70e-01, 5.34e-01, 4.79e-01),
+      maps_sem = c(1.23e-03, 3.48e-03, 2.54e-04, 3.60e-04),
+      tranche = c(rep("array.maps", 4), rep("array.both", 4),
+                  rep("array.sum", 4))
+    )
+  ) %>% 
+  arrange(desc(maps))
+
 (maps_sub_p <- ggplot(
-  maps_sub,
+  maps_sub_array,
   aes(x = lof_csq_collapsed, y = maps)
 ) +
-  # fill = c('#9D1309', '#EE799F', '#FF6103', '#AAAAAA'))) +
-  geom_dotplot(
-    binaxis = "y", stackdir = "center", fill = c("grey", "orange", "darkred", "darkred"),
-    col = c("grey", "orange", "darkred", "darkred"), binwidth = 0.015
-  ) +
-  ylim(c(-0.01, 0.185)) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
-  theme_classic() +
-  theme(panel.border = element_blank(), legend.key = element_blank()) +
-  ggtitle("MAPS in LoF & Missense & Synonymous") +
-  ylab("MAPS") +
-  xlab("Collapsed lof and consequence calls") +
-  theme(legend.position = "none") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  theme(
-    axis.title = element_text(face = "bold", size = 18),
-    axis.text.x = element_text(face = "bold", colour = "black", size = 15),
-    axis.text.y = element_text(face = "bold", colour = "black", size = 15),
-    title = element_text(face = "bold", size = 20)
-  )
+    # fill = c('#9D1309', '#EE799F', '#FF6103', '#AAAAAA'))) +
+    geom_dotplot(
+      binaxis = "y", stackdir = "center", fill = c("darkred", "darkred", "darkred", "darkred","darkred", "darkred", "darkred","darkred", "orange", "orange", "orange", "orange", "grey", "grey", "grey",  "grey"),
+      col = c("darkred", "darkred", "darkred", "darkred","darkred", "darkred", "darkred","darkred", "orange", "orange", "orange", "orange", "grey", "grey", "grey",  "grey"), binwidth = 0.015
+    ) +
+    ylim(c(-0.01, 0.185)) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+    theme_classic() +
+    theme(panel.border = element_blank(), legend.key = element_blank()) +
+    ggtitle("MAPS in LoF & Missense & Synonymous") +
+    ylab("MAPS") +
+    xlab("Collapsed lof and consequence calls") +
+    theme(legend.position = "none") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    theme(
+      axis.title = element_text(face = "bold", size = 18),
+      axis.text.x = element_text(face = "bold", colour = "black", size = 15),
+      axis.text.y = element_text(face = "bold", colour = "black", size = 15),
+      title = element_text(face = "bold", size = 20)
+    )
 )
 
 maps_sub %>%
@@ -108,25 +130,25 @@ ht_syn_ps_recoded <- ht_syn_ps_recoded[order(ht_syn_ps_recoded$variant_type), ]
 ht_syn_ps_recoded$context <- factor(ht_syn_ps_recoded$context, levels = unique(ht_syn_ps_recoded$context))
 
 (mu_snp_vs_ps <- ht_syn_ps_recoded %>%
-  ggplot(aes(x = mu_snp, y = ps, color = variant_type) +
-    geom_point(size = 5, alpha = 0.6) +
-    scale_color_manual(values = c(
-      "CpG Transition" = "#2E9FFE",
-      "Non-CpG Transition" = "#458B00",
-      "Transversion" = "#EA4444"
-    )) +
-    theme_classic() +
-    ggtitle("Singleton proportion vs. mutational rates - Synonymous Variants")) +
-  xlab("Mutation rate") +
-  ylab("Singleton proportion") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  theme(
-    axis.title = element_text(face = "bold", size = 18),
-    axis.text.x = element_text(face = "bold", colour = "black", size = 15),
-    axis.text.y = element_text(face = "bold", colour = "black", size = 15),
-    title = element_text(face = "bold", size = 20),
-    legend.text = element_text(size = 18)
-  ))
+    ggplot(aes(x = mu_snp, y = ps, color = variant_type) +
+             geom_point(size = 5, alpha = 0.6) +
+             scale_color_manual(values = c(
+               "CpG Transition" = "#2E9FFE",
+               "Non-CpG Transition" = "#458B00",
+               "Transversion" = "#EA4444"
+             )) +
+             theme_classic() +
+             ggtitle("Singleton proportion vs. mutational rates - Synonymous Variants")) +
+    xlab("Mutation rate") +
+    ylab("Singleton proportion") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    theme(
+      axis.title = element_text(face = "bold", size = 18),
+      axis.text.x = element_text(face = "bold", colour = "black", size = 15),
+      axis.text.y = element_text(face = "bold", colour = "black", size = 15),
+      title = element_text(face = "bold", size = 20),
+      legend.text = element_text(size = 18)
+    ))
 
 mu_snp_vs_ps %>%
   plotly::ggplotly()
@@ -159,25 +181,25 @@ ht_syn_ps_recoded <- ht_syn_ps %>%
   ))
 
 (mu_snp_vs_ps <- ht_syn_ps_recoded %>%
-  ggplot(aes(x = mu_snp, y = ps, color = variant_type)) +
-  geom_point(size = 1, alpha = 0.6) +
-  scale_color_manual(values = c(
-    "CpG Transition" = "#2E9FFE",
-    "Non-CpG Transition" = "#458B00",
-    "Transversion" = "#EA4444"
-  )) +
-  theme_classic() +
-  ggtitle("Singleton proportion vs. mutational rates - Synonymous Variants") +
-  xlab("Mutation rate") +
-  ylab("Singleton proportion") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  theme(
-    axis.title = element_text(face = "bold", size = 18),
-    axis.text.x = element_text(face = "bold", colour = "black", size = 15),
-    axis.text.y = element_text(face = "bold", colour = "black", size = 15),
-    title = element_text(face = "bold", size = 20),
-    legend.text = element_text(size = 18)
-  ))
+    ggplot(aes(x = mu_snp, y = ps, color = variant_type)) +
+    geom_point(size = 1, alpha = 0.6) +
+    scale_color_manual(values = c(
+      "CpG Transition" = "#2E9FFE",
+      "Non-CpG Transition" = "#458B00",
+      "Transversion" = "#EA4444"
+    )) +
+    theme_classic() +
+    ggtitle("Singleton proportion vs. mutational rates - Synonymous Variants") +
+    xlab("Mutation rate") +
+    ylab("Singleton proportion") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    theme(
+      axis.title = element_text(face = "bold", size = 18),
+      axis.text.x = element_text(face = "bold", colour = "black", size = 15),
+      axis.text.y = element_text(face = "bold", colour = "black", size = 15),
+      title = element_text(face = "bold", size = 20),
+      legend.text = element_text(size = 18)
+    ))
 
 
 
@@ -295,25 +317,25 @@ ht_syn_ps_recoded <- ht_syn_ps_recoded[order(ht_syn_ps_recoded$variant_type), ]
 ht_syn_ps_recoded$context <- factor(ht_syn_ps_recoded$context, levels = unique(ht_syn_ps_recoded$context))
 
 (mu_snp_vs_ps <- ht_syn_ps_recoded %>%
-  ggplot(aes(x = mu_snp, y = ps, color = variant_type)) +
-  geom_point(size = 5, alpha = 0.6) +
-  scale_color_manual(values = c(
-    "CpG Transition" = "#2E9FFE",
-    "Non-CpG Transition" = "#458B00",
-    "Transversion" = "#EA4444"
-  )) +
-  theme_classic() +
-  ggtitle("Singleton proportion vs. mutational rates - Synonymous Variants") +
-  xlab("Mutation rate") +
-  ylab("Singleton proportion") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  theme(
-    axis.title = element_text(face = "bold", size = 18),
-    axis.text.x = element_text(face = "bold", colour = "black", size = 15),
-    axis.text.y = element_text(face = "bold", colour = "black", size = 15),
-    title = element_text(face = "bold", size = 20),
-    legend.text = element_text(size = 18)
-  ))
+    ggplot(aes(x = mu_snp, y = ps, color = variant_type)) +
+    geom_point(size = 5, alpha = 0.6) +
+    scale_color_manual(values = c(
+      "CpG Transition" = "#2E9FFE",
+      "Non-CpG Transition" = "#458B00",
+      "Transversion" = "#EA4444"
+    )) +
+    theme_classic() +
+    ggtitle("Singleton proportion vs. mutational rates - Synonymous Variants") +
+    xlab("Mutation rate") +
+    ylab("Singleton proportion") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    theme(
+      axis.title = element_text(face = "bold", size = 18),
+      axis.text.x = element_text(face = "bold", colour = "black", size = 15),
+      axis.text.y = element_text(face = "bold", colour = "black", size = 15),
+      title = element_text(face = "bold", size = 20),
+      legend.text = element_text(size = 18)
+    ))
 
 # III) ecdf on MAPS in synonymous
 maps_table_synonymous <- maps_table %>%
@@ -331,7 +353,7 @@ ggplot(maps_table_synonymous_ecdf,
   xlab('abs(MAPS)') +
   ylab('Gene Ratio') +
   ggtitle('Cumulative Plot of abs(MAPS) Per Gene Based on Synonymous Variants')
-  
+
 # IV) MAPS missense vs. HC
 maps_table_not_lc <- maps_table %>% 
   filter(lof_csq_collapsed != 'LC') %>%
@@ -376,7 +398,7 @@ maps_table_metrics <- maps_table %>%
 
 maps_table_metrics_final <- maps_table_metrics %>% 
   left_join(maps_table_binned)
-  
+
 
 ggplot(maps_table_metrics_final,
        aes(x = oe_lof_upper, y = maps, col = syn_maps_binned)) +
@@ -528,20 +550,20 @@ maps_table_meta_hc_lc <- maps_table_meta %>%
 
 
 maps_table_meta_hc_lc %>%
-    ggplot(aes(x = HC, y = LC)) +
-    geom_point(size = 1) +
-    theme_classic() +
-    ggtitle("MAPS in HC vs. MAPS in LC For The Same Genes") +
-    xlab("MAPS_HC") +
-    ylab("MAPS_LC") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    theme(
-      axis.title = element_text(face = "bold", size = 18),
-      axis.text.x = element_text(face = "bold", colour = "black", size = 15),
-      axis.text.y = element_text(face = "bold", colour = "black", size = 15),
-      title = element_text(face = "bold", size = 20),
-      legend.text = element_text(size = 18)
-    )
+  ggplot(aes(x = HC, y = LC)) +
+  geom_point(size = 1) +
+  theme_classic() +
+  ggtitle("MAPS in HC vs. MAPS in LC For The Same Genes") +
+  xlab("MAPS_HC") +
+  ylab("MAPS_LC") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(
+    axis.title = element_text(face = "bold", size = 18),
+    axis.text.x = element_text(face = "bold", colour = "black", size = 15),
+    axis.text.y = element_text(face = "bold", colour = "black", size = 15),
+    title = element_text(face = "bold", size = 20),
+    legend.text = element_text(size = 18)
+  )
 
 maps_table_meta_hc_missense <- maps_table_meta %>% 
   filter(lof_csq_collapsed == 'HC' | lof_csq_collapsed == 'missense_variant') %>%
@@ -567,5 +589,30 @@ maps_table_meta_hc_missense %>%
     title = element_text(face = "bold", size = 20),
     legend.text = element_text(size = 18)
   )
+
+# -------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
