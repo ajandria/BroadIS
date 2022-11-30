@@ -39,13 +39,16 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
     # Was based on *_reg_table.
     ht_reg_table = ht
 
+    # Annotate gene ids to the main ht
+    ht_reg_table = ht_reg_table.annotate(gene_ids = ht_reg_tableht.vep.worst_csq_by_gene_canonical.gene_id)
+
     # Get number of singletons and number of variants in total for each variant type. 
-    ht_reg_table_variants = (ht_reg_table.group_by('locus', 'alleles', 'context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(
+    ht_reg_table_variants = (ht_reg_table.group_by('locus', 'alleles', 'gene_ids', 'context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(
         singletons = ((hl.agg.array_agg(lambda x: hl.agg.sum(x[0] == 1), ht_reg_table.freq))), 
         variants = ((hl.agg.array_agg(lambda x: hl.agg.sum(x[0] > 0), ht_reg_table.freq)))))
 
     # Collapse the singleton and variant frequencies into per tri-nucletide context and methylation level.
-    ht_reg_table_variants = (ht_reg_table_variants.group_by('context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(
+    ht_reg_table_variants = (ht_reg_table_variants.group_by('gene_ids', 'context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(
         N_variants = hl.agg.array_sum(ht_reg_table_variants.variants), 
         N_singletons = hl.agg.array_sum(ht_reg_table_variants.singletons)))
 
@@ -76,7 +79,7 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
         expected_singletons = (ht_reg_table_ps.mu_snp * ht_reg_table_ps.beta1 + ht_reg_table_ps.intercept) * ht_reg_table_ps.N_variants)
 
     # This aggregates the N_singletons, expected_singletons and N_variants into the SNVs class. 
-    ht_reg_table_ps_lm_cons_agg = (ht_reg_table_ps_lm_cons.group_by("lof_csq_collapsed")
+    ht_reg_table_ps_lm_cons_agg = (ht_reg_table_ps_lm_cons.group_by("gene_ids", "lof_csq_collapsed")
                 .aggregate(N_singletons=hl.agg.array_sum(ht_reg_table_ps_lm_cons.N_singletons),
                             expected_singletons=hl.agg.array_sum(ht_reg_table_ps_lm_cons.expected_singletons),
                             N_variants=hl.agg.array_sum(ht_reg_table_ps_lm_cons.N_variants)))
