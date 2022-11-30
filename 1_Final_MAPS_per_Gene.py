@@ -179,7 +179,7 @@ def main():
     
     # Checkpoint or read here if debug needed.
     #ht = hl.read_table('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v1/main_ht_upstream.ht')
-    ht = ht.checkpoint('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v1/main_ht_upstream.ht')
+    ht = ht.checkpoint('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/main_ht_upstream.ht')
     
     # 5. Train linear model on synonymous variants for mutational class correction.
     print("SYNONYMOUS VARIANTS")
@@ -206,11 +206,11 @@ def main():
 
     # 7. Export the data.
     # Final hail table.
-    maps_table.write('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v3_final/maps_downsampling_multi_model.ht')
+    maps_table.write('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/maps_downsampling_multi_model.ht')
     # Export final hail table as csv for debugging/plotting.
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v3_final/maps_downsampling_multi_model.csv', delimiter=',')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/maps_downsampling_multi_model.csv', delimiter=',')
     # Export MAPS table as csv for debugging/plotting.
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v3_final/maps_downsampling_multi_model_syn_ps.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/maps_downsampling_multi_model_syn_ps.csv', delimiter=',')
 
 # Run the pipeline from this script.     
 if __name__ == '__main__':
