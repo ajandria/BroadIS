@@ -62,24 +62,31 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
          
     ht_syn_lm = ht_syn_lm.key_by()
 
-    ht_syn_lm_sub = ht_syn_lm.select('context', 'ref', 'alt', 'methylation_level', 'betas')
+    ht_syn_lm_sub = ht_syn_lm.select('context', 'ref', 'alt', 'methylation_level', 'intercept', 'beta1')
 
     ht_syn_lm_sub = ht_syn_lm_sub.key_by('context', 'ref', 'alt', 'methylation_level')
 
     ht_reg_table_ps = ht_reg_table_ps.annotate(**ht_syn_lm_sub[ht_reg_table_ps.context, ht_reg_table_ps.ref, ht_reg_table_ps.alt, ht_reg_table_ps.methylation_level])
     
-    ht_reg_table_ps.show()
+    #ht_reg_table_ps.show()
     
-    ht_reg_table_ps = ht_reg_table_ps.annotate(intercept = ht_reg_table_ps.betas[0], beta1 = ht_reg_table_ps.betas[1])
+    #ht_reg_table_ps = ht_reg_table_ps.annotate(intercept = ht_reg_table_ps.betas[0], beta1 = ht_reg_table_ps.betas[1])
 
-    ht_reg_table_ps = ht_reg_table_ps.annotate(betas_variants = hl.zip(ht_reg_table_ps.intercept, ht_reg_table_ps.beta1, ht_reg_table_ps.N_variants))
+    #ht_reg_table_ps = ht_reg_table_ps.annotate(betas_variants = hl.zip(ht_reg_table_ps.intercept, ht_reg_table_ps.beta1, ht_reg_table_ps.N_variants))
 
-    ht_reg_table_ps.show()
+    #ht_reg_table_ps.show()
 
     # This adds the expected singleton info
-    ht_reg_table_ps_lm_cons = (ht_reg_table_ps.group_by('lof_csq_collapsed', 'context', 'ref', 'alt', 'methylation_level').aggregate(expected_singletons = hl.agg.array_agg(lambda element: hl.agg.sum((ht_reg_table_ps.mu_snp * element[1] + element[0]) * element[2]), ht_reg_table_ps.betas_variants)))
+    #ht_reg_table_ps_lm_cons = (ht_reg_table_ps.group_by('lof_csq_collapsed', 'context', 'ref', 'alt', 'methylation_level').aggregate(expected_singletons = hl.agg.array_agg(lambda element: hl.agg.sum((ht_reg_table_ps.mu_snp * element[1] + element[0]) * element[2]), ht_reg_table_ps.betas_variants)))
+    ht_reg_table_ps_lm_cons = ht_reg_table_ps.annotate(expected_singletons = (ht_reg_table_ps.mu_snp * ht_reg_table_ps.beta1 + ht_reg_table_ps.intercept) * ht_reg_table_ps.N_variants)
 
-    ht_reg_table_ps_lm_cons = ht_reg_table_ps.annotate(**ht_reg_table_ps_lm_cons[ht_reg_table_ps.lof_csq_collapsed, ht_reg_table_ps.context, ht_reg_table_ps.ref, ht_reg_table_ps.alt, ht_reg_table_ps.methylation_level])
+    #ht_reg_table_ps_lm_cons.show()
+
+    #ht_reg_table_ps_lm_cons.show()
+
+    #ht_reg_table_ps_lm_cons = ht_reg_table_ps.annotate(**ht_reg_table_ps_lm_cons[ht_reg_table_ps.lof_csq_collapsed, ht_reg_table_ps.context, ht_reg_table_ps.ref, ht_reg_table_ps.alt, ht_reg_table_ps.methylation_level])
+
+    #ht_reg_table_ps_lm_cons.show()
 
     # To aggregate just sum for the context
     ht_reg_table_ps_lm_cons_agg = (ht_reg_table_ps_lm_cons.group_by("lof_csq_collapsed")
@@ -87,12 +94,19 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
                             expected_singletons=hl.agg.array_sum(ht_reg_table_ps_lm_cons.expected_singletons),
                             N_variants=hl.agg.array_sum(ht_reg_table_ps_lm_cons.N_variants)))
 
+    #ht_reg_table_ps_lm_cons_agg.show()
+
     # Calculate MAPS and aggregated proportions 
     ht_reg_table_ps_lm_cons_agg_MAPS = ht_reg_table_ps_lm_cons_agg.annotate(ps_agg=ht_reg_table_ps_lm_cons_agg.N_singletons / ht_reg_table_ps_lm_cons_agg.N_variants,
         maps=(ht_reg_table_ps_lm_cons_agg.N_singletons - ht_reg_table_ps_lm_cons_agg.expected_singletons) / ht_reg_table_ps_lm_cons_agg.N_variants)
 
+    #ht_reg_table_ps_lm_cons_agg_MAPS.show()
+
     # Add MAPS standard error of the mean (sem)
     ht_reg_table_ps_lm_cons_agg_MAPS = ht_reg_table_ps_lm_cons_agg_MAPS.annotate(maps_sem=(ht_reg_table_ps_lm_cons_agg_MAPS.ps_agg * (1 - ht_reg_table_ps_lm_cons_agg_MAPS.ps_agg) / ht_reg_table_ps_lm_cons_agg_MAPS.N_variants) ** 0.5)
+    
+    #ht_reg_table_ps_lm_cons_agg_MAPS.show()
+
     return ht_reg_table_ps_lm_cons_agg_MAPS
 
 def collapse_strand(ht):
@@ -125,8 +139,8 @@ def collapse_lof_call(ht):
     return ht
 
 def main():
-    """
-    # 2. Import data
+    
+    """ # 2. Import data
     # Import gnomaAD v.3.1.2
     ht = hl.read_table('gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.sites.ht')
 
@@ -154,8 +168,8 @@ def main():
             ).when(
                 context_table_parsed.methyl_mean > 0.2, 1
             ).default(0))
-    """ 
-    # 3. Add context field to main data
+    
+    """ # 3. Add context field to main data
     # Split alleles field to ref and alt allele and collapse strands
     ht = ht.annotate(ref=ht.alleles[0], alt=ht.alleles[1], **context_table_parsed[ht.key])
     ht = collapse_strand(ht) # Collapse strands as some mutation contexts may not be present in mutation table
@@ -166,7 +180,8 @@ def main():
     ht = ht.filter((ht.lof_csq_collapsed == 'HC') | (ht.lof_csq_collapsed == 'LC') | (ht.lof_csq_collapsed == 'OS') | (ht.lof_csq_collapsed == 'missense_variant') | (ht.lof_csq_collapsed == 'synonymous_variant'))
     """
     # Checkpoint or read here
-    ht = hl.read_table('gs://janucik-dataproc-stage/01_maps/02b_maps_per_variant_array-main_17_Nov_22_v2/maps_per_variant_array_main.ht')
+    ht = hl.read_table('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v1/main_ht_upstream.ht')
+    #ht = ht.checkpoint('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v1/main_ht_upstream.ht')
     
 
     # 4. Train linear model on synonymous variants for mutational class correction
@@ -179,7 +194,10 @@ def main():
 
     # Perform regression
     ht_syn_ps = ht_syn_ps.annotate(ps_nVariants = hl.zip(ht_syn_ps.ps, ht_syn_ps.N_variants))
-    ht_syn_lm = ht_syn_ps.annotate(betas = ht_syn_ps.aggregate(hl.agg.array_agg(lambda element: hl.agg.linreg(element[0], [1, ht_syn_ps.mu_snp], weight=element[1]).beta, ht_syn_ps.ps_nVariants)))
+    ht_syn_lm = ht_syn_ps.annotate(intercept = ht_syn_ps.aggregate(hl.agg.array_agg(lambda element: hl.agg.linreg(element[0], [1, ht_syn_ps.mu_snp], weight=element[1]).beta[0], ht_syn_ps.ps_nVariants)))
+    ht_syn_lm = ht_syn_lm.annotate(beta1 = ht_syn_lm.aggregate(hl.agg.array_agg(lambda element: hl.agg.linreg(element[0], [1, ht_syn_lm.mu_snp], weight=element[1]).beta[1], ht_syn_lm.ps_nVariants)))
+
+    #t_syn_lm.show()
 
     # Show intercept and beta
     print("REGRESSION PARAMETERS")
@@ -193,15 +211,15 @@ def main():
     #meta_fields = ht.freq_meta.collect()
     #maps_table = maps_table.annotate_globals(freq_metas = meta_fields)
 
-    maps_table.show()
+    #maps_table.show()
 
     #maps_table = maps_table.annotate_globals(ht.freq_meta.collect())
 
-    maps_table.write('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_21_Nov_23_v2/02a_f_maps_table.ht')
+    maps_table.write('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v3_final/maps_downsampling_multi_model.ht')
 
     # 6. Export tables for plotting and exploring
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_21_Nov_23_v2/02a_f_maps_table.csv', delimiter=',')
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/1_array_rerun_maps_per_variant_main_21_Nov_23_v2/ht_syn_ps.csv', delimiter=',')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v3_final/maps_downsampling_multi_model.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v3_final/maps_downsampling_multi_model_syn_ps.csv', delimiter=',')
     
 if __name__ == '__main__':
     main()
