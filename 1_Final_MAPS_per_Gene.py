@@ -40,8 +40,14 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
     ht_reg_table = ht
 
     # Annotate gene ids to the main ht
-    ht_reg_table = ht_reg_table.annotate(gene_ids = ht_reg_tableht.vep.worst_csq_by_gene_canonical.gene_id)
+    ht_reg_table = ht_reg_table.annotate(gene_ids = ht_reg_table.vep.worst_csq_by_gene_canonical.gene_id)
 
+    # Get number of singletons and number of variants in total for each variant type. 
+    ht_reg_table_variants = (ht_reg_table.group_by('gene_ids', 'context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(
+        N_singletons = ((hl.agg.array_agg(lambda x: hl.agg.sum(x[0] == 1), ht_reg_table.freq))), 
+        N_variants = ((hl.agg.array_agg(lambda x: hl.agg.sum(x[0] > 0), ht_reg_table.freq)))))
+
+    """ 
     # Get number of singletons and number of variants in total for each variant type. 
     ht_reg_table_variants = (ht_reg_table.group_by('locus', 'alleles', 'gene_ids', 'context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(
         singletons = ((hl.agg.array_agg(lambda x: hl.agg.sum(x[0] == 1), ht_reg_table.freq))), 
@@ -51,6 +57,7 @@ def regress_per_context(ht, ht_syn_lm, ht_mu):
     ht_reg_table_variants = (ht_reg_table_variants.group_by('gene_ids', 'context', 'ref', 'alt', 'methylation_level', 'lof_csq_collapsed').aggregate(
         N_variants = hl.agg.array_sum(ht_reg_table_variants.variants), 
         N_singletons = hl.agg.array_sum(ht_reg_table_variants.singletons)))
+    """
 
     # Compute singleton to total number of variants ratio (this is actually not needed as it gets recomputed later, but can be usefull for debugging).
     ht_reg_table_ps = ht_reg_table_variants.annotate(
@@ -127,7 +134,7 @@ def collapse_lof_call(ht):
     return ht
 
 def main():
-    # 2. Import data
+    """ # 2. Import data
     # Import gnomaAD v.3.1.2 Genomes
     ht = hl.read_table('gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.sites.ht')
 
@@ -137,7 +144,7 @@ def main():
     ht = ht.explode(ht.vep.worst_csq_by_gene_canonical)
     # Keep SNPs passing filters, related to protein_coding ENSG genes. 
     ht = ht.filter((hl.len(ht.filters) == 0) & (ht.vep.worst_csq_by_gene_canonical.biotype == 'protein_coding') & (ht.vep.worst_csq_by_gene_canonical.gene_id.startswith('ENSG')))
-    
+    """
     # Import mutation rates from gnomAD paper.
     ht_mu = hl.import_table('gs://janucik-dataproc-stage/01_maps/supplementary_dataset_10_mutation_rates.tsv.gz',
                     delimiter='\t', impute=True, force_bgz=True)
@@ -161,7 +168,7 @@ def main():
             ).when(
                 context_table_parsed.methyl_mean > 0.2, 1
             ).default(0))
-    
+    """ 
     # 3. Merge context info into the main ht.
     # Split alleles into ref, alt and add contexts by matching locus and alleles fields.
     ht = ht.annotate(
@@ -176,10 +183,10 @@ def main():
     # 4. Implement loftee and filter to only synonymous, missense or LOF calls.
     ht = collapse_lof_call(ht)
     ht = ht.filter((ht.lof_csq_collapsed == 'HC') | (ht.lof_csq_collapsed == 'LC') | (ht.lof_csq_collapsed == 'OS') | (ht.lof_csq_collapsed == 'missense_variant') | (ht.lof_csq_collapsed == 'synonymous_variant'))
-    
+    """
     # Checkpoint or read here if debug needed.
-    #ht = hl.read_table('gs://janucik-dataproc-stage/01_maps/1-array-rerun_maps_per_variant-separate-models-main_2022_Nov_24_v1/main_ht_upstream.ht')
-    ht = ht.checkpoint('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/main_ht_upstream.ht')
+    ht = hl.read_table('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/main_ht_upstream.ht')
+    #ht = ht.checkpoint('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/main_ht_upstream.ht')
     
     # 5. Train linear model on synonymous variants for mutational class correction.
     print("SYNONYMOUS VARIANTS")
@@ -194,23 +201,30 @@ def main():
     # Perform regression.
     # Zip PS and total number of variants as required by the model.
     ht_syn_ps = ht_syn_ps.annotate(ps_nVariants = hl.zip(ht_syn_ps.ps, ht_syn_ps.N_variants))
+    """     
     # Compute intercept.
     ht_syn_lm = ht_syn_ps.annotate(intercept = ht_syn_ps.aggregate(hl.agg.array_agg(
         lambda element: hl.agg.linreg(element[0], [1, ht_syn_ps.mu_snp], weight=element[1]).beta[0], ht_syn_ps.ps_nVariants)))
     # Compute slope for mutational rate.
     ht_syn_lm = ht_syn_lm.annotate(beta1 = ht_syn_lm.aggregate(hl.agg.array_agg(
         lambda element: hl.agg.linreg(element[0], [1, ht_syn_lm.mu_snp], weight=element[1]).beta[1], ht_syn_lm.ps_nVariants)))
+    """
+    # Compute intercept and slope for mutational rate.
+    ht_model_betas = ht_syn_ps.aggregate(hl.agg.array_agg(
+        lambda element: hl.agg.linreg(element[0], [1, ht_syn_ps.mu_snp], weight=element[1]).beta, ht_syn_ps.ps_nVariants))
+    # Split the tuple and annotate as arrays for later compute.
+    ht_syn_lm = ht_syn_ps.annotate(intercept = hl.map(lambda x: x[0], ht_model_betas), beta1 = hl.map(lambda x: x[1], ht_model_betas))
     
     # 6. Predict number of singletons based on synonymous variation accross the whole genome and compute MAPS. 
     maps_table = regress_per_context(ht, ht_syn_lm, ht_mu)
 
     # 7. Export the data.
     # Final hail table.
-    maps_table.write('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/maps_downsampling_multi_model.ht')
+    maps_table.write('gs://janucik-dataproc-stage/01_maps/v1_22_Dec_2022_MAPS_per_gene_using_arrays/maps_downsampling_multi_model.ht')
     # Export final hail table as csv for debugging/plotting.
-    maps_table.export('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/maps_downsampling_multi_model.csv', delimiter=',')
+    maps_table.export('gs://janucik-dataproc-stage/01_maps/v1_22_Dec_2022_MAPS_per_gene_using_arrays/maps_downsampling_multi_model.csv', delimiter=',')
     # Export MAPS table as csv for debugging/plotting.
-    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/v1_30_Nov_2022_MAPS_per_gene_using_arrays/maps_downsampling_multi_model_syn_ps.csv', delimiter=',')
+    ht_syn_ps.export('gs://janucik-dataproc-stage/01_maps/v1_22_Dec_2022_MAPS_per_gene_using_arrays/maps_downsampling_multi_model_syn_ps.csv', delimiter=',')
 
 # Run the pipeline from this script.     
 if __name__ == '__main__':

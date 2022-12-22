@@ -1,0 +1,352 @@
+---
+title: "Implementing MAPS in gene list recognition"
+date: "`r format(Sys.Date(),'%e %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+  pdf_document: default
+---
+
+```{r global, include=FALSE}
+## Global options
+knitr::opts_chunk$set(
+  cache = FALSE,
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+
+```{r setup}
+# Dependencies ------------------------------------------------------------
+library(tidyverse)
+library(ggplot2)
+library(pROC)
+library(caret)
+library(ggplot2)
+library(broom)
+library(knitr)
+library(kableExtra)
+
+# Setup -------------------------------------------------------------------
+maps_global <- read_csv('/Users/adrian/BroadIS/MAPS/01_data/maps_clean_global_Per_gene.csv') %>% 
+  rename(gene_id = gene_ids)
+
+metrics <- read_delim('/Users/adrian/BroadIS/MAPS/01_data/gnomad.v2.1.1.lof_metrics.by_gene.txt')
+
+haploinsufficient_1  <- read_csv('/Users/adrian/BroadIS/MAPS/01_data/haploinsufficiency_severe_curated_2016.tsv',
+                  col_names = c('gene'))
+haploinsufficient_2  <- read_csv('/Users/adrian/BroadIS/MAPS/01_data/haploinsufficiency_moderate_curated_2016.tsv',
+                  col_names = c('gene'))
+haploinsufficient_3  <- read_csv('/Users/adrian/BroadIS/MAPS/01_data/haploinsufficiency_severe_curated_2016.tsv',
+                  col_names = c('gene'))
+
+haploinsufficient_final <- union(union(haploinsufficient_1$gene,
+                                       haploinsufficient_2$gene), haploinsufficient_3$gene) %>% 
+  tibble() %>% 
+  rename(gene = ".") %>% 
+  mutate(haploinsufficient = 1)
+  
+olfactory <- read_csv('/Users/adrian/BroadIS/MAPS/01_data/olfactory_receptors.tsv',
+                                 col_names = c('gene')) %>% 
+  mutate(olfactory = 1)
+
+```
+
+# {.tabset}
+
+## 1) Haploinsufficiency
+
+<h1 align="center"> HC </h2>
+
+```{r}
+# Join the tables
+maps_haplo <- maps_global %>% 
+  left_join(metrics) %>% 
+  left_join(haploinsufficient_final) %>% 
+  mutate(haploinsufficient = factor(ifelse(is.na(haploinsufficient), 0, haploinsufficient)))
+```
+
+#### *haploinsufficincy ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+haploinsufficient_MAPS_logit <- 
+  glm(haploinsufficient ~ MAPS, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(haploinsufficient_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *haploinsufficincy ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+haploinsufficient_lof_logit <- 
+  glm(haploinsufficient ~ oe_lof_upper, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(haploinsufficient_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *haploinsufficincy ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+haploinsufficient_lof_maps_logit <- 
+  glm(haploinsufficient ~ oe_lof_upper + MAPS, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(haploinsufficient_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+***
+
+<h1 align="center"> LC </h2>
+
+#### *haploinsufficincy ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+haploinsufficient_MAPS_logit <- 
+  glm(haploinsufficient ~ MAPS, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(haploinsufficient_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *haploinsufficincy ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+haploinsufficient_lof_logit <- 
+  glm(haploinsufficient ~ oe_lof_upper, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(haploinsufficient_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+####  *haploinsufficincy ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+haploinsufficient_lof_maps_logit <- 
+  glm(haploinsufficient ~ oe_lof_upper + MAPS, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(haploinsufficient_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+ 
+***
+ 
+<h1 align="center"> Synonymous </h2>
+
+#### *haploinsufficincy ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+haploinsufficient_MAPS_logit <- 
+  glm(haploinsufficient ~ MAPS, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(haploinsufficient_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *haploinsufficincy ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+haploinsufficient_lof_logit <- 
+  glm(haploinsufficient ~ oe_lof_upper, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(haploinsufficient_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### Sanity check for missense as it has the same genes
+
+```{r}
+# Logit for just oe_lof_upper
+missense_lof <- 
+  glm(haploinsufficient ~ oe_lof_upper, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'missense_variant'), 
+      family = "binomial")
+
+kable(tidy(missense_lof), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+####  *haploinsufficincy ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+haploinsufficient_lof_maps_logit <- 
+  glm(haploinsufficient ~ oe_lof_upper + MAPS, 
+      data = maps_haplo %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(haploinsufficient_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+
+## 2) Olfactory
+
+<h1 align="center"> HC </h2>
+
+```{r}
+# Join the tables
+maps_olfactory <- maps_global %>% 
+  left_join(metrics) %>% 
+  left_join(olfactory) %>% 
+  mutate(olfactory = factor(ifelse(is.na(olfactory), 0, olfactory)))
+```
+
+#### *olfactory ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+olfactory_MAPS_logit <- 
+  glm(olfactory ~ MAPS, 
+      data = maps_olfactory %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(olfactory_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *olfactory ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+olfactory_lof_logit <- 
+  glm(olfactory ~ oe_lof_upper, 
+      data = maps_olfactory %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(olfactory_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *olfactory ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+olfactory_lof_maps_logit <- 
+  glm(olfactory ~ oe_lof_upper + MAPS, 
+      data = maps_olfactory %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(olfactory_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+***
+
+<h1 align="center"> LC </h2>
+
+#### *olfactory ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+olfactory_MAPS_logit <- 
+  glm(olfactory ~ MAPS, 
+      data = maps_olfactory %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(olfactory_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *olfactory ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+olfactory_lof_logit <- 
+  glm(olfactory ~ oe_lof_upper, 
+      data = maps_olfactory %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(olfactory_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+####  *olfactory ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+olfactory_lof_maps_logit <- 
+  glm(olfactory ~ oe_lof_upper + MAPS, 
+      data = maps_olfactory %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(olfactory_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+ 
+***
+ 
+<h1 align="center"> Synonymous </h2>
+
+#### *olfactory ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+olfactory_MAPS_logit <- 
+  glm(olfactory ~ MAPS, 
+      data = maps_olfactory %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(olfactory_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *olfactory ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+olfactory_lof_logit <- 
+  glm(olfactory ~ oe_lof_upper, 
+      data = maps_olfactory %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(olfactory_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+####  *olfactory ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+olfactory_lof_maps_logit <- 
+  glm(olfactory ~ oe_lof_upper + MAPS, 
+      data = maps_olfactory %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(olfactory_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+
+
+
+
+
+

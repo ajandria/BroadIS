@@ -1,0 +1,345 @@
+---
+title: "Implementing MAPS in gene list recognition"
+date: "`r format(Sys.Date(),'%e %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+  pdf_document: default
+---
+
+```{r global, include=FALSE}
+## Global options
+knitr::opts_chunk$set(
+  cache = FALSE,
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+
+```{r setup}
+# Dependencies ------------------------------------------------------------
+library(tidyverse)
+library(ggplot2)
+library(pROC)
+library(caret)
+library(ggplot2)
+library(broom)
+library(knitr)
+library(kableExtra)
+
+# Setup -------------------------------------------------------------------
+maps_global <- read_csv('/Users/adrian/BroadIS/MAPS/01_data/maps_clean_global_Per_gene.csv') %>% 
+  rename(gene_id = gene_ids)
+
+metrics <- read_delim('/Users/adrian/BroadIS/MAPS/01_data/gnomad.v2.1.1.lof_metrics.by_gene.txt')
+
+AD  <- read_csv('/Users/adrian/BroadIS/MAPS/01_data/all_ad.tsv',
+                col_names = c('gene')) %>% 
+  mutate(AD = 1)
+  
+AR  <- read_csv('/Users/adrian/BroadIS/MAPS/01_data/all_ar.tsv',
+                col_names = c('gene')) %>% 
+  mutate(AR = 1)
+
+```
+
+# {.tabset}
+
+## 1) AD
+
+<h1 align="center"> HC </h2>
+
+```{r}
+# Join the tables
+maps_AD <- maps_global %>% 
+  left_join(metrics) %>% 
+  left_join(AD) %>% 
+  mutate(AD = factor(ifelse(is.na(AD), 0, AD)))
+```
+
+#### *AD ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+AD_MAPS_logit <- 
+  glm(AD ~ MAPS, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(AD_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *AD ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+AD_lof_logit <- 
+  glm(AD ~ oe_lof_upper, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(AD_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *AD ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+AD_lof_maps_logit <- 
+  glm(AD ~ oe_lof_upper + MAPS, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(AD_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+***
+
+<h1 align="center"> LC </h2>
+
+#### *AD ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+AD_MAPS_logit <- 
+  glm(AD ~ MAPS, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(AD_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *AD ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+AD_lof_logit <- 
+  glm(AD ~ oe_lof_upper, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(AD_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+####  *AD ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+AD_lof_maps_logit <- 
+  glm(AD ~ oe_lof_upper + MAPS, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(AD_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+ 
+***
+ 
+<h1 align="center"> Synonymous </h2>
+
+#### *AD ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+AD_MAPS_logit <- 
+  glm(AD ~ MAPS, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(AD_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *AD ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+AD_lof_logit <- 
+  glm(AD ~ oe_lof_upper, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(AD_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+####  *AD ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+AD_lof_maps_logit <- 
+  glm(AD ~ oe_lof_upper + MAPS, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(AD_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+<h1 align="center"> Missense </h2>
+
+#### *AD ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+missense_lof <- 
+  glm(AD ~ oe_lof_upper, 
+      data = maps_AD %>% filter(lof_csq_collapsed == 'missense_variant'), 
+      family = "binomial")
+
+kable(tidy(missense_lof), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+
+## 2) AR
+
+<h1 align="center"> HC </h2>
+
+```{r}
+# Join the tables
+maps_AR <- maps_global %>% 
+  left_join(metrics) %>% 
+  left_join(AR) %>% 
+  mutate(AR = factor(ifelse(is.na(AR), 0, AR)))
+```
+
+#### *AR ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+AR_MAPS_logit <- 
+  glm(AR ~ MAPS, 
+      data = maps_AR %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(AR_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *AR ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+AR_lof_logit <- 
+  glm(AR ~ oe_lof_upper, 
+      data = maps_AR %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(AR_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *AR ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+AR_lof_maps_logit <- 
+  glm(AR ~ oe_lof_upper + MAPS, 
+      data = maps_AR %>% filter(lof_csq_collapsed == 'HC'), 
+      family = "binomial")
+
+kable(tidy(AR_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+***
+
+<h1 align="center"> LC </h2>
+
+#### *AR ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+AR_MAPS_logit <- 
+  glm(AR ~ MAPS, 
+      data = maps_AR %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(AR_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *AR ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+AR_lof_logit <- 
+  glm(AR ~ oe_lof_upper, 
+      data = maps_AR %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(AR_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+####  *AR ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+AR_lof_maps_logit <- 
+  glm(AR ~ oe_lof_upper + MAPS, 
+      data = maps_AR %>% filter(lof_csq_collapsed == 'LC'), 
+      family = "binomial")
+
+kable(tidy(AR_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+ 
+***
+ 
+<h1 align="center"> Synonymous </h2>
+
+#### *AR ~ MAPS*
+
+```{r}
+# Logit for just MAPS
+AR_MAPS_logit <- 
+  glm(AR ~ MAPS, 
+      data = maps_AR %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(AR_MAPS_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+#### *AR ~ oe_lof_upper*
+
+```{r}
+# Logit for just oe_lof_upper
+AR_lof_logit <- 
+  glm(AR ~ oe_lof_upper, 
+      data = maps_AR %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(AR_lof_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+####  *AR ~ oe_lof_upper + MAPS*
+
+```{r}
+# Add effect of MAPS
+AR_lof_maps_logit <- 
+  glm(AR ~ oe_lof_upper + MAPS, 
+      data = maps_AR %>% filter(lof_csq_collapsed == 'synonymous_variant'), 
+      family = "binomial")
+
+kable(tidy(AR_lof_maps_logit), digits = 3) %>%
+  kable_styling(full_width = FALSE)
+```
+
+
+
+
+
+
+
